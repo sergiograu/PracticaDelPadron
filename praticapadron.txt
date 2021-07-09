@@ -1,0 +1,750 @@
+PRÁCTICA DEL PADRÓN
+
+Primero que todo hay que descargarse el archivo csv que contiene los datos para la
+práctica del siguiente enlace (https://datos.madrid.es/egob/catalogo/200076-1-padron.csv)
+
+1. CREACIÓN DE TABLAS EN FORMATO DE TEXTO
+
+Hay que abrir hive en la consola
+
+1.1 Crear la base de datos "datos_padron"
+
+create database datos_padron;
+use datos_padron;
+
+1.2 Crear tabla padron_txt
+
+create table padron_txt(
+     COD_DISTRITO INT, 
+     DESC_DISTRITO STRING,
+     COD_DIST_BARRIO INT,
+     DESC_BARRIO STRING, 
+     COD_BARRIO INT, 
+     COD_DIST_SECCION INT,
+     COD_SECCION INT, 
+     COD_EDAD_INT INT,
+     EspanolesHombres INT, 
+     EspanolesMujeres INT, 
+     ExtranjerosHombres INT,
+     ExtranjerosMujeres INT
+     )
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+ WITH SERDEPROPERTIES (
+   'separatorChar' = '\073',
+   'quoteChar' = '"',
+   'escapeChar' = '\\'
+   )
+STORED AS TEXTFILE
+tblproperties("skip.header.line.count"="1");
+
+
+Cargamos los datos, si ponemos local el archivo a cargar tiene que estar en el sistema local 
+
+LOAD DATA LOCAL INPATH '/home/cloudera/ejercicios/ejercicios_HIVE/padron.csv' INTO TABLE padron_txt;
+
+
+Para hacer que la tabla tuviera los valores correctos hemos tenido que crear otra tabla a partir de esta.
+
+CREATE TABLE IF NOT EXISTS padron_txt_valores AS 
+SELECT CAST(cod_distrito AS INT) AS cod_distrito, 
+desc_distrito, 
+CAST(cod_dist_barrio AS INT) AS cod_dist_barrio, 
+desc_barrio, 
+CAST(cod_barrio AS INT) AS cod_barrio, 
+CAST(cod_dist_seccion AS INT) AS cod_dist_seccion, 
+CAST(cod_seccion AS INT) AS cod_seccion, 
+CAST(cod_edad_int AS INT) AS cod_edad_int,
+CAST(EspanolesHombres AS INT) AS EspanolesHombres, 
+CAST(EspanolesMujeres AS INT) AS EspanolesMujeres, 
+CAST(ExtranjerosHombres AS INT) AS ExtranjerosHombres, 
+CAST(ExtranjerosMujeres AS INT) AS ExtranjerosMujeres 
+FROM padron_txt;
+
+Tenemos que crear una tabla donde no aparezcan espacios entre los valores, para eso usamos el comando TRIM
+
+
+CREATE TABLE IF NOT EXISTS padron_txt_1 AS 
+SELECT CAST(TRIM(cod_distrito) AS INT) AS cod_distrito, 
+TRIM(desc_distrito) AS desc_distrito, 
+CAST(TRIM(cod_dist_barrio) AS INT) AS cod_dist_barrio, 
+TRIM(desc_barrio) AS desc_barrio, 
+CAST(TRIM(cod_barrio) AS INT) AS cod_barrio, 
+CAST(TRIM(cod_dist_seccion) AS INT) AS cod_dist_seccion, 
+CAST(TRIM(cod_seccion) AS INT) AS cod_seccion, 
+CAST(TRIM(cod_edad_int) AS INT) AS cod_edad_int,
+CAST(TRIM(EspanolesHombres) AS INT) AS EspanolesHombres, 
+CAST(TRIM(EspanolesMujeres) AS INT) AS EspanolesMujeres, 
+CAST(TRIM(ExtranjerosHombres) AS INT) AS ExtranjerosHombres, 
+CAST(TRIM(ExtranjerosMujeres) AS INT) AS ExtranjerosMujeres
+FROM padron_txt;
+
+De la tabla anterior creamos ahora una donde cambiemos los valores NULL por 0
+
+
+CREATE TABLE IF NOT EXISTS padron_txt_2 AS SELECT
+cod_distrito,
+desc_distrito,
+cod_dist_barrio,
+desc_barrio,
+cod_barrio,
+cod_dist_seccion,
+cod_seccion,
+cod_edad_int,
+CASE WHEN EspanolesHombres IS NULL THEN 0 ELSE EspanolesHombres END AS EspanolesHombres,
+CASE WHEN EspanolesMujeres IS NULL THEN 0 ELSE EspanolesMujeres END AS EspanolesMujeres,
+CASE WHEN ExtranjerosMujeres IS NULL THEN 0 ELSE ExtranjerosMujeres END AS ExtranjerosMujeres, 
+CASE WHEN ExtranjerosHombres IS NULL THEN 0 ELSE ExtranjerosHombres END AS ExtranjerosHombres 
+FROM padron_txt_1;
+
+
+
+HEMOS CREADO 4 TABLAS:
+
+TABLA 1 -> La tabla en formato txt ----------------------------------- padron_txt
+TABLA 2 -> Se han casteado valores de la tabla de string a int-------- padron_txt_valores
+TABLA 3 -> Tabla sin espacios----------------------------------------- padron_txt_1
+TABLA 4 -> Tabla sin espacion y se ha cambiado el valor NULL a 0------ padron_txt_2
+
+
+
+-------------------------------------------------------------------------------------------
+
+2. INVESTIGAMOS EL FORMATO COLUMNAR PARQUET
+
+2.1 ¿Que es CTAS?
+
+Las tablas también se pueden crear y completar con los resultados 
+de una consulta en una declaración de creación de tabla como selección, esto es lo que significa CTAS
+
+2.2 Creacion de tablas con CTAS
+
+Creamos las mismas tablas que antes pero con formato parquet (es decir formato columnar lo cual las harás
+más compactas por lo tanto más rapidas).
+
+Para crear la tabla padron_parque con CTAS, utilizamos el siguiente comando, usamos STORED AS PARQUET
+para de esta manera guardarla en formato parquetsho
+
+
+CREATE TABLE padron_parquet STORED AS PARQUET AS SELECT * FROM padron_txt;
+
+
+
+CREATE TABLE IF NOT EXISTS padron_parquet_valores STORED AS PARQUET AS 
+SELECT CAST(cod_distrito AS INT) AS cod_distrito, 
+desc_distrito, 
+CAST(cod_dist_barrio AS INT) AS cod_dist_barrio, 
+desc_barrio, 
+CAST(cod_barrio AS INT) AS cod_barrio, 
+CAST(cod_dist_seccion AS INT) AS cod_dist_seccion, 
+CAST(cod_seccion AS INT) AS cod_seccion,
+CAST(cod_edad_int AS INT) AS cod_edad_int, 
+CAST(EspanolesHombres AS INT) AS EspanolesHombres, 
+CAST(EspanolesMujeres AS INT) AS EspanolesMujeres, 
+CAST(ExtranjerosHombres AS INT) AS ExtranjerosHombres, 
+CAST(ExtranjerosMujeres AS INT) AS ExtranjerosMujeres 
+FROM padron_parquet;
+
+
+
+CREATE TABLE IF NOT EXISTS padron_parquet_1 STORED AS PARQUET AS 
+SELECT CAST(TRIM(cod_distrito) AS INT) AS cod_distrito, 
+TRIM(desc_distrito) AS desc_distrito, 
+CAST(TRIM(cod_dist_barrio) AS INT) AS cod_dist_barrio, 
+TRIM(desc_barrio) AS desc_barrio, 
+CAST(TRIM(cod_barrio) AS INT) AS cod_barrio, 
+CAST(TRIM(cod_dist_seccion) AS INT) AS cod_dist_seccion, 
+CAST(TRIM(cod_seccion) AS INT) AS cod_seccion,
+CAST(TRIM(cod_edad_int) AS INT) AS cod_edad_int, 
+CAST(TRIM(EspanolesHombres) AS INT) AS EspanolesHombres, 
+CAST(TRIM(EspanolesMujeres) AS INT) AS EspanolesMujeres, 
+CAST(TRIM(ExtranjerosHombres) AS INT) AS ExtranjerosHombres, 
+CAST(TRIM(ExtranjerosMujeres) AS INT) AS ExtranjerosMujeres
+FROM padron_parquet;
+
+
+
+
+CREATE TABLE IF NOT EXISTS padron_parquet_2 STORED AS PARQUET AS SELECT
+cod_distrito,
+desc_distrito,
+cod_dist_barrio,
+desc_barrio,
+cod_barrio,
+cod_dist_seccion,
+cod_seccion,
+cod_edad_int,
+CASE WHEN EspanolesHombres IS NULL THEN 0 ELSE EspanolesHombres END AS EspanolesHombres,
+CASE WHEN EspanolesMujeres IS NULL THEN 0 ELSE EspanolesMujeres END AS EspanolesMujeres,
+CASE WHEN ExtranjerosMujeres IS NULL THEN 0 ELSE ExtranjerosMujeres END AS ExtranjerosMujeres, 
+CASE WHEN ExtranjerosHombres IS NULL THEN 0 ELSE ExtranjerosHombres END AS ExtranjerosHombres 
+FROM padron_parquet_1;
+
+2.5 Investigar en qué consiste el formato columnar parquet y las ventajas de trabajar 
+con este tipo de formatos
+
+Es un formato de almacenamiento columnar disponible para cualquier proyecto en el ecosistema
+de Hadoop, independiente del framework utilizado para procesar los datos o el lenguaje de programación.
+
+Parquet fue creado para que las ventajas de la compresión y la eficiencia de la 
+representación columnar estuviera disponible para cualquier proyecto del ecosistema Hadoop.
+
+Parquet está diseñado para soportar eficientemente esquemas de compresión y codificación. 
+Parquet permite que los esquemas de compresión se especifiquen en un nivel por columna. 
+Parquet tiene tres opciones para la compresión de sus archivos: snappy, gzip o ninguno.
+
+El formato de Parquet esta compuesto por tres piezas:
+
+Row group: conjunto de filas en formato columnar. 50Mb < row group < 1Gb
+
+Column chunk: son los datos de una columna en un grupo. Pueden ser leídas independientemente
+para mejorar las lecturas.
+
+Page: unida de acceso en un chunk. Debe ser lo suficiente grande para que la compresión 
+sea eficiente. 8Kb
+
+2.6 Comparar el tamaño de los ficheros de los datos de las tablas padron_txt (txt), 
+padron_txt_2 (txt pero no incluye los espacios innecesarios), padron_parquet y 
+padron_parquet_2 (alojados en hdfs cuya ruta se puede obtener de la propiedad 
+location de cada tabla por ejemplo haciendo "show create table").
+
+show create table padron_parquet;
+
+
+Con el siguiente comando podemos ver el tamaño de los ficheros
+
+hdfs dfs -du -h /user/hive/warehouse/datos_padron.db
+931.4 K  931.4 K  /user/hive/warehouse/datos_padron.db/padron_parquet
+853.2 K  853.2 K  /user/hive/warehouse/datos_padron.db/padron_parquet_1
+916.4 K  916.4 K  /user/hive/warehouse/datos_padron.db/padron_parquet_2
+855.2 K  855.2 K  /user/hive/warehouse/datos_padron.db/padron_parquet_valores
+10.8 M   10.8 M   /user/hive/warehouse/datos_padron.db/padron_particionado
+21.5 M   21.5 M   /user/hive/warehouse/datos_padron.db/padron_txt
+12.1 M   12.1 M   /user/hive/warehouse/datos_padron.db/padron_txt_1
+11.9 M   11.9 M   /user/hive/warehouse/datos_padron.db/padron_txt_2
+16.4 M   16.4 M   /user/hive/warehouse/datos_padron.db/padron_txt_valores
+
+
+
+
+Vemos claramente que los ficheros guardados en formato columnar de parquet tiene menos tamaño 
+y como hemos dihco antes son mas compactos y rapidos.
+
+
+
+TABLA 1 -> La tabla en formato parquet-------------------------------- padron_parquet
+TABLA 2 -> Se han casteado valores de la tabla de string a int-------- padron_parquet_valores
+TABLA 3 -> Tabla sin espacios----------------------------------------- padron_parquet_1
+TABLA 4 -> Tabla sin espacion y se ha cambiado el valor NULL a 0------ padron_parquet_2
+
+
+-------------------------------------------------------------------------------------------
+
+
+3. JUGUEMOS CON IMPALA
+
+3.1 ¿Qué es Impala?
+Impala es un motor de consulta SQL de procesamiento paralelo masivo que se utiliza para 
+procesar un gran volumen de datos almacenados en el clúster de Hadoop. 
+Está escrito en C ++ y Java. Proporciona un rendimiento superior al de Hive..
+
+Proporciona escalabilidad, flexibilidad, soporte de SQL y rendimiento multiusuario. 
+Permite a los usuarios comunicarse con HDFS mediante una consulta de tipo SQL llamada HBase 
+mucho más rápido. Además, puede leer varios formatos de archivo como Parquet y Avro. 
+Utiliza metadatos, sintaxis SQL (Hive SQL), controlador ODBC e interfaz de usuario 
+similar a Hive. Proporciona una plataforma unificada para consultas por lotes o en tiempo 
+real..
+
+3.2 ¿En qué se diferencia de Hive?
+
+
+Hive es un proyecto de software de almacenamiento de datos construido sobre Apache Hadoop 
+para proporcionar consultas y análisis de datos. Impala es un motor de consulta SQL de 
+procesamiento masivo de código abierto para datos almacenados en un clúster de computadora 
+que ejecuta Apache Hadoop. Así, esto explica la diferencia fundamental entre Hive e Impala..
+
+La base de operación es otra diferencia entre Hive e Impala. Hive se basa en el algoritmo MapReduce. 
+Impala no se basa en el algoritmo MapReduce. Implementa una arquitectura distribuida basada 
+en procesos daemon. También maneja la ejecución de consultas que se ejecuta en las 
+mismas máquinas..
+
+Además, Hive materializa todos los resultados intermedios para que mejore la escalabilidad 
+y la tolerancia a fallos. Impala realiza streaming de resultados intermedios entre 
+ejecutores..
+
+Por lo tanto, Impala es mejor para la computación interactiva que Hive..
+
+Además, Impala es más rápido que Hive porque reduce la latencia. 
+Esta es una gran diferencia entre Hive e Impala..
+
+Otra diferencia entre Hive e Impala es que Hive es un Hadoop MapReduce basado en lotes, 
+mientras que Impala es un motor de consulta SQL de procesamiento paralelo masivo..
+
+Además, en Hive, la salida de la consulta se produce porque es tolerante a fallos, 
+mientras que un nodo de datos se cae durante la ejecución. 
+En Impala, la ejecución de consultas comienza desde el principio, 
+mientras que un nodo de datos cae durante la ejecución.
+
+Hive admite tipos complejos, mientras que Impala no admite tipos complejos..
+
+3.3 Comando INVALIDATE METADATA, ¿en qué consiste?
+
+INVALIDATE METADATASe utiliza para actualizar los metadatos de toda la base de datos o una tabla, incluidos los metadatos de la tabla y los datos del archivo en la tabla. 
+Primero borrará la memoria caché de la tabla y luego volverá a cargar todos 
+los datos de la tienda de metadatos y la memoria caché. 
+Esta operación es relativamente cara. Se utiliza principalmente para modificar 
+los metadatos de la tabla en Hive, y debe sincronizarse para impalad, 
+por ejemplo.create table/drop table/alter table add columnsEsperar.
+
+
+3.4  Hacer invalidate metadata en Impala de la base de datos datos_padron
+
+use datos_padron;
+invalidate metadata;
+
+3.5 Calcular el total de EspanolesHombres, espanolesMujeres, ExtranjerosHombres y 
+ExtranjerosMujeres agrupado por DESC_DISTRITO y DESC_BARRIO.
+
+
+SELECT sum(EspanolesHombres) AS EspanolesHombres, 
+sum(EspanolesMujeres) AS EspanolesMujeres,
+sum(ExtranjerosHombres) AS ExtranjerosHombres, 
+sum(ExtranjerosMujeres) AS ExtranjerosMujeres, 
+desc_distrito, 
+desc_barrio 
+FROM padron_parquet_2 
+GROUP BY desc_distrito, desc_barrio 
+ORDER BY desc_distrito, desc_barrio;
+
+3.6  Llevar a cabo las consultas en Hive en las tablas padron_txt_2 y padron_parquet_2 
+(No deberían incluir espacios innecesarios). ¿Alguna conclusión?
+
+TABLA padron_txt_2 -> Time taken: 67.339 seconds, Fetched: 132 row(s)
+
+SELECT sum(EspanolesHombres) AS EspanolesHombres, 
+sum(EspanolesMujeres) AS EspanolesMujeres,
+sum(ExtranjerosHombres) AS ExtranjerosHombres, 
+sum(ExtranjerosMujeres) AS ExtranjerosMujeres, 
+desc_distrito, 
+desc_barrio 
+FROM padron_txt_2 
+GROUP BY desc_distrito, desc_barrio 
+ORDER BY desc_distrito, desc_barrio;
+
+
+TABLA padron_parquet_2 -> Time taken: 94.549 seconds, Fetched: 132 row(s)
+
+SELECT sum(EspanolesHombres) AS EspanolesHombres, 
+sum(EspanolesMujeres) AS EspanolesMujeres,
+sum(ExtranjerosHombres) AS ExtranjerosHombres, 
+sum(ExtranjerosMujeres) AS ExtranjerosMujeres, 
+desc_distrito, 
+desc_barrio 
+FROM padron_parquet_2 
+GROUP BY desc_distrito, desc_barrio 
+ORDER BY desc_distrito, desc_barrio;
+
+
+
+3.7 Llevar a cabo la misma consulta sobre las mismas tablas en Impala. ¿Alguna 
+conclusión?
+
+
+TABLA padron_txt_2 -> Fetched 132 row(s) in 4.75s
+
+SELECT sum(EspanolesHombres) AS EspanolesHombres, 
+sum(EspanolesMujeres) AS EspanolesMujeres,
+sum(ExtranjerosHombres) AS ExtranjerosHombres, 
+sum(ExtranjerosMujeres) AS ExtranjerosMujeres, 
+desc_distrito, 
+desc_barrio 
+FROM padron_txt_2 
+GROUP BY desc_distrito, desc_barrio 
+ORDER BY desc_distrito, desc_barrio;
+
+
+TABLA padron_parquet_2 -> Fetched 132 row(s) in 0.88s
+
+SELECT sum(EspanolesHombres) AS EspanolesHombres, 
+sum(EspanolesMujeres) AS EspanolesMujeres,
+sum(ExtranjerosHombres) AS ExtranjerosHombres, 
+sum(ExtranjerosMujeres) AS ExtranjerosMujeres, 
+desc_distrito, 
+desc_barrio 
+FROM padron_parquet_2 
+GROUP BY desc_distrito, desc_barrio 
+ORDER BY desc_distrito, desc_barrio;
+
+3.8 ¿Se percibe alguna diferencia de rendimiento entre Hive e Impala?
+
+La principal diferencia entre Hive y Impala es que a la hora de hacer una consulta en Impala
+es muchisimo más rapida que al hacerla en Hive.
+
+-------------------------------------------------------------------------------------------
+
+4. SOBRE TABLAS PARTICIONADAS
+
+4.1 Crear tabla (Hive) padron_particionado particionada por campos DESC_DISTRITO y 
+DESC_BARRIO cuyos datos estén en formato parquet.
+
+
+CREATE TABLE padron_particionado(
+DESC_DISTRITO STRING,
+COD_DIST_BARRIO INT,
+DESC_BARRIO STRING,
+COD_DIST_SECCION INT,
+COD_SECCION INT,
+COD_EDAD_INT INT,
+EspanolesHombres INT,
+EspanolesMujeres INT,
+ExtranjerosHombres INT,
+ExtranjerosMujeres INT)
+PARTITIONED BY(COD_DISTRITO INT, COD_BARRIO INT)
+STORED AS PARQUET;
+
+
+
+4.2 Insertar datos (en cada partición) dinámicamente (con Hive) en la tabla recién 
+creada a partir de un select de la tabla padron_parquet_2.
+
+
+INSERT OVERWRITE TABLE padron_particionado PARTITION(COD_DISTRITO, COD_BARRIO)
+SELECT DESC_DISTRITO,
+COD_DIST_BARRIO,
+DESC_BARRIO,
+COD_DIST_SECCION,
+COD_SECCION,
+COD_EDAD_INT,
+EspanolesHombres,
+EspanolesMujeres,
+ExtranjerosHombres,
+ExtranjerosMujeres,
+COD_DISTRITO,
+COD_BARRIO 
+FROM padron_parquet_2;
+
+
+Para ver las tablas particionadas que se han creado, sería con el siguiente comando 
+en el terminal
+
+Estas son las tablas del particionado cod_distrito
+
+hadoop fs -ls /user/hive/warehouse/datos_padron.db/padron_particionado
+Found 21 items
+drwxrwxrwx   - cloudera supergroup          0 2021-06-29 04:07 /user/hive/warehouse/datos_padron.db/padron_particionado/cod_distrito=1
+drwxrwxrwx   - cloudera supergroup          0 2021-06-29 04:07 /user/hive/warehouse/datos_padron.db/padron_particionado/cod_distrito=10
+drwxrwxrwx   - cloudera supergroup          0 2021-06-29 04:07 /user/hive/warehouse/datos_padron.db/padron_particionado/cod_distrito=11
+
+Dentro de las tablas del particionado cod_distrito = 1 se han creado otras tablas particionadas
+a partir del valor cod_barrio
+
+hadoop fs -ls /user/hive/warehouse/datos_padron.db/padron_particionado/cod_distrito=0
+Found 6 items
+drwxrwxrwx   - cloudera supergroup          0 2021-06-29 04:07 /user/hive/warehouse/datos_padron.db/padron_particionado/cod_distrito=1/cod_barrio=1
+drwxrwxrwx   - cloudera supergroup          0 2021-06-29 04:07 /user/hive/warehouse/datos_padron.db/padron_particionado/cod_distrito=1/cod_barrio=2
+
+
+4.3 Hacer invalidate metadata en Impala de la base de datos padron_particionado.
+
+impala-shell
+
+use datos_padron;
+invalidate metadata;
+
+
+4.4 Calcular el total de EspanolesHombres, EspanolesMujeres, ExtranjerosHombres y 
+ExtranjerosMujeres agrupado por DESC_DISTRITO y DESC_BARRIO para los distritos 
+CENTRO, LATINA, CHAMARTIN, TETUAN, VICALVARO y BARAJAS.
+
+4.5 Llevar a cabo la consulta en Hive en las tablas padron_parquet y 
+padron_partitionado. ¿Alguna conclusión?
+
+TABLA padron_particionado -> Time taken: 70.343 seconds, Fetched: 35 row(s)
+
+SELECT sum(EspanolesHombres) AS EspanolesHombres, 
+sum(EspanolesMujeres) AS EspanolesMujeres, 
+sum(ExtranjerosHombres) AS ExtranjerosHombres, 
+sum(ExtranjerosMujeres) AS ExtranjerosMujeres,
+desc_distrito,
+desc_barrio
+FROM padron_particionado
+where cod_distrito = 1 OR cod_distrito = 5 OR cod_distrito = 6 OR cod_distrito = 10 OR 
+      cod_distrito = 19 OR cod_distrito = 21
+GROUP BY desc_distrito, desc_barrio
+ORDER BY desc_distrito, desc_barrio;
+
+TABLA padron_parquet_2 -> Time taken: 66.63 seconds, Fetched: 35 row(s)
+
+SELECT sum(EspanolesHombres) AS EspanolesHombres, 
+sum(EspanolesMujeres) AS EspanolesMujeres, 
+sum(ExtranjerosHombres) AS ExtranjerosHombres, 
+sum(ExtranjerosMujeres) AS ExtranjerosMujeres,
+desc_distrito,
+desc_barrio
+FROM padron_parquet_2
+where cod_distrito = 1 OR cod_distrito = 5 OR cod_distrito = 6 OR cod_distrito = 10 OR 
+      cod_distrito = 19 OR cod_distrito = 21
+GROUP BY desc_distrito, desc_barrio
+ORDER BY desc_distrito, desc_barrio;
+
+
+Es más rápido la consulta sobre la tabla padron_parquet_2 que en la tabla padron_particionado
+
+
+4.6 Llevar a cabo la consulta en Impala en las tablas padron_parquet y 
+padron_particionado. ¿Alguna conclusión?
+
+
+TABLA padron_particionado -> Fetched 35 row(s) in 1.20s
+
+SELECT sum(EspanolesHombres) AS EspanolesHombres, 
+sum(EspanolesMujeres) AS EspanolesMujeres, 
+sum(ExtranjerosHombres) AS ExtranjerosHombres, 
+sum(ExtranjerosMujeres) AS ExtranjerosMujeres,
+desc_distrito,
+desc_barrio
+FROM padron_particionado
+where cod_distrito = 1 OR cod_distrito = 5 OR cod_distrito = 6 OR cod_distrito = 10 OR 
+      cod_distrito = 19 OR cod_distrito = 21
+GROUP BY desc_distrito, desc_barrio
+ORDER BY desc_distrito, desc_barrio;
+
+
+TABLA padron_parquet_2 -> Fetched 35 row(s) in 0.57s
+
+SELECT sum(EspanolesHombres) AS EspanolesHombres, 
+sum(EspanolesMujeres) AS EspanolesMujeres, 
+sum(ExtranjerosHombres) AS ExtranjerosHombres, 
+sum(ExtranjerosMujeres) AS ExtranjerosMujeres,
+desc_distrito,
+desc_barrio
+FROM padron_parquet_2
+where cod_distrito = 1 OR cod_distrito = 5 OR cod_distrito = 6 OR cod_distrito = 10 OR 
+      cod_distrito = 19 OR cod_distrito = 21
+GROUP BY desc_distrito, desc_barrio
+ORDER BY desc_distrito, desc_barrio;
+
+
+Es más rápido la consulta sobre la tabla padron_parquet_2 que en la tabla padron_particionado
+
+4.7 Hacer consultas de agregación (Max, Min, Avg, Count) tal cual el ejemplo anterior 
+con las 3 tablas (padron_txt_2, padron_parquet_2 y padron_particionado) y 
+comparar rendimientos tanto en Hive como en Impala y sacar conclusiones.
+
+
+PRIMERO LO HACEMOS EN IMPALA
+
+TABLA padron_parquet_2 -> Fetched 21 row(s) in 0.43s
+
+select sum(EspanolesHombres), 
+max(EspanolesMujeres), 
+min(ExtranjerosHombres), 
+avg(ExtranjerosMujeres), 
+count(desc_distrito), 
+desc_distrito 
+from padron_parquet_2 
+group by desc_distrito;
+
+
+TABLA padron_particionado -> Fetched 21 row(s) in 1.27s
+
+
+select sum(EspanolesHombres), 
+max(EspanolesMujeres), 
+min(ExtranjerosHombres), 
+avg(ExtranjerosMujeres), 
+count(desc_distrito), 
+desc_distrito 
+from padron_particionado
+group by desc_distrito;
+
+
+
+TABLA padron_txt_2 -> Fetched 21 row(s) in 4.10s
+
+
+select sum(EspanolesHombres), 
+max(EspanolesMujeres), 
+min(ExtranjerosHombres), 
+avg(ExtranjerosMujeres), 
+count(desc_distrito), 
+desc_distrito 
+from padron_txt_2 
+group by desc_distrito;
+
+
+SEGUNDO LO HACEMOS EN HIVE
+
+
+TABLA padron_parquet_2 -> Time taken: 36.272 seconds, Fetched: 21 row(s)
+
+select sum(EspanolesHombres), 
+max(EspanolesMujeres), 
+min(ExtranjerosHombres), 
+avg(ExtranjerosMujeres), 
+count(desc_distrito), 
+desc_distrito 
+from padron_parquet_2 
+group by desc_distrito;
+
+
+TABLA padron_particionado -> Time taken: 36.39 seconds, Fetched: 21 row(s)
+
+select sum(EspanolesHombres), 
+max(EspanolesMujeres), 
+min(ExtranjerosHombres), 
+avg(ExtranjerosMujeres), 
+count(desc_distrito), 
+desc_distrito 
+from padron_particionado
+group by desc_distrito;
+
+
+TABLA padron_txt_2 -> Time taken: 35.215 seconds, Fetched: 21 row(s
+
+
+select sum(EspanolesHombres), 
+max(EspanolesMujeres), 
+min(ExtranjerosHombres), 
+avg(ExtranjerosMujeres), 
+count(desc_distrito), 
+desc_distrito 
+from padron_txt_2 
+group by desc_distrito;
+
+
+-------------------------------------------------------------------------------------------
+
+5. TRABAJANDO CON TABLAS EN HDFS
+
+A continuación vamos a hacer una inspección de las tablas, tanto externas (no 
+gestionadas) como internas (gestionadas). Este apartado se hará si se tiene acceso y conocimiento 
+previo sobre cómo insertar datos en HDFS.
+
+5.1 Crear un documento de texto en el almacenamiento local que contenga una 
+secuencia de números distribuidos en filas y separados por columnas, llámalo 
+datos1
+
+cat > datos1.txt
+1,2,3
+4,5,6
+7,8,9
+
+cat datos1.txt
+
+5.2 Crear un segundo documento (datos2) con otros números pero la misma estructura.
+
+cat > datos2.txt
+9,8,7
+6,5,4
+3,2,1
+
+cat datos2.txt
+
+5.3 Crear un directorio en HDFS con un nombre a placer, por ejemplo, /test. Si estás en 
+una máquina Cloudera tienes que asegurarte de que el servicio HDFS está activo ya 
+que puede no iniciarse al encender la máquina (puedes hacerlo desde el Cloudera 
+Manager). A su vez, en las máquinas Cloudera es posible (dependiendo de si 
+usamos Hive desde consola o desde Hue) que no tengamos permisos para crear 
+directorios en HDFS salvo en el directorio /user/cloudera.
+
+
+hadoop fs -mkdir /user/cloudera/ejercicios/test
+
+
+5.4 Mueve tu fichero datos1 al directorio que has creado en HDFS con un comando 
+desde consola.
+
+Con el primer comando creamos el directorio donde irá nuestor archivo y con el segundo
+movemos nuestro archivo al directorio.
+
+hadoop fs -mkdir /user/cloudera/ejercicios/test
+hadoop fs -put /media/sf_FormacionBigData/datos1.txt /user/cloudera/ejercicios/test
+
+5.5 Desde Hive, crea una nueva database por ejemplo con el nombre numeros. Crea 
+una tabla que no sea externa y sin argumento location con tres columnas 
+numéricas, campos separados por coma y delimitada por filas. La llamaremos por 
+ejemplo numeros_tbl.
+
+create database numeros;
+use numeros;
+CREATE TABLE numeros_tbl(
+x int, 
+y int, 
+z int
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ',';
+
+
+5.6 Carga los datos de nuestro fichero de texto datos1 almacenado en HDFS en la tabla 
+de Hive. Consulta la localización donde estaban anteriormente los datos 
+almacenados. ¿Siguen estando ahí? ¿Dónde están?. Borra la tabla, ¿qué ocurre con 
+los datos almacenados en HDFS?
+
+load data inpath '/user/cloudera/ejercicios/test/datos1.txt/' into table numeros_tbl;
+
+select * from numeros_tbl;
+
+Cuando hemos cargado los datos, el fichero datos1.txt almacenados en HDFS ya no se
+encuentra en la localización en la que estaba anteriorimente. Borramos la tabla pero
+el archivo sigue sin aparecer. 
+
+5.7 Vuelve a mover el fichero de texto datos1 desde el almacenamiento local al 
+directorio anterior en HDFS.
+
+hadoop fs -put /media/sf_FormacionBigData/datos1.txt /user/cloudera/ejercicios/test
+
+5.8 Desde Hive, crea una tabla externa sin el argumento location. Y carga datos1 (desde 
+HDFS) en ella. ¿A dónde han ido los datos en HDFS? Borra la tabla ¿Qué ocurre con 
+los datos en hdfs?
+
+
+CREATE EXTERNAL TABLE numeros_tbl(
+x int, 
+y int, 
+z int
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ',';
+
+
+load data inpath '/user/cloudera/ejercicios/test/datos1.txt/' into table numeros_tbl;
+
+Los datos si que se van pero aunque borremos la tabla se siguen guardando los datos en ella. 
+Los datos de una tabla externa NO se borran en HDFS al borrar la tabla. En el directorio
+de hive donde se guardan las tablas al crear ua tabla externa los datos no se borran se
+quedan guardados alli. La tabla se queda guardada en /user/hive/warehouse/numeros.db con 
+el archivo datos1.txt
+
+5.9 Borra el fichero datos1 del directorio en el que estén. Vuelve a insertarlos en el 
+directorio que creamos inicialmente (/test). Vuelve a crear la tabla numeros desde 
+hive pero ahora de manera externa y con un argumento location que haga 
+referencia al directorio donde los hayas situado en HDFS (/test). No cargues los 
+datos de ninguna manera explícita. Haz una consulta sobre la tabla que acabamos 
+de crear que muestre todos los registros. ¿Tiene algún contenido?
+
+
+CREATE EXTERNAL TABLE numeros_tbl1(
+x int, 
+y int, 
+z int
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ','
+LOCATION '/user/cloudera/ejercicios/test';
+
+Como la tabla y el archivo datos1.txt estan en el mismo directorio, al hacer una consulta 
+se cargan directamente los datos a la tabla sin tener que hacer un load. El archivo 
+datos1.txt en este caso no se ha borrado. En esta caso la tabla aun siendo externa
+al poner location, no se ha creado una tabla en /user/hive/warehouse/numeros.db
+
+5.10 Inserta el fichero de datos creado al principio, "datos2" en el mismo directorio de 
+HDFS que "datos1". Vuelve a hacer la consulta anterior sobre la misma tabla. ¿Qué 
+salida muestra?
+
+Al hacer la consulta con el fichero datos2.txt en el mismo directorio que datos1.txt
+la consulta muestra los dos archivos en una tabla. 
+
+
+-------------------------------------------------------------------------------------------
+
